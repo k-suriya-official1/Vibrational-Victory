@@ -164,6 +164,19 @@
       margin-bottom: 15px;
       display: none;
     }
+    .debug-info {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      display: none;
+    }
+    .debug-toggle {
+      margin-top: 10px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -223,14 +236,27 @@
       <button class="btn today-btn" id="btnGoToToday">Today</button>
       <button class="btn refresh-btn" id="btnRefresh">Refresh</button>
     </div>
+    
+    <div class="debug-toggle">
+      <button id="toggleDebug" class="btn">Show Debug Info</button>
+    </div>
+    
+    <div id="debugInfo" class="debug-info">
+      <h3>Debug Information</h3>
+      <div id="apiResponse">API Response: None yet</div>
+      <div id="parsedData">Parsed Data: None yet</div>
+    </div>
   </div>
 
   <script>
     // Replace with your Google Apps Script Web App URL
-    const API_URL = 'https://script.google.com/macros/s/AKfycbyLgZIzTFXVjXLM7UqSNZgaD-BGFZDl047HlJWiiIIE7nu7tnwllYw6leuC9y0owuYppA/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzufqL3SE510e8K8D_cWRMlxY1cD-9gv_I8FzJt64hAv7pkbGQqxabUznzjn4PgpLn1Hg/exec';
+    
+    // For development, set to true to bypass login check
+    const DEV_MODE = false;
     
     // Check if user is logged in
-    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+    if (!DEV_MODE && sessionStorage.getItem('isLoggedIn') !== 'true') {
       window.location.href = 'index.html';
     }
 
@@ -242,6 +268,10 @@
     const tableBody = document.getElementById('tableBody');
     const loadingDiv = document.getElementById('loading');
     const errorMsgDiv = document.getElementById('errorMsg');
+    const debugInfoDiv = document.getElementById('debugInfo');
+    const apiResponseDiv = document.getElementById('apiResponse');
+    const parsedDataDiv = document.getElementById('parsedData');
+    const toggleDebugBtn = document.getElementById('toggleDebug');
     
     // Navigation buttons
     const btnFirstPage = document.getElementById('btnFirstPage');
@@ -261,6 +291,7 @@
     let daysPerPage = 10;
     let totalPages = 10;
     let nvpData = [];
+    let debugMode = false;
     
     // Initial setup
     function init() {
@@ -276,6 +307,7 @@
       btnLastPage.addEventListener('click', () => showPage(totalPages));
       btnGoToToday.addEventListener('click', goToToday);
       btnRefresh.addEventListener('click', refreshView);
+      toggleDebugBtn.addEventListener('click', toggleDebug);
       logoutBtn.addEventListener('click', () => {
         sessionStorage.removeItem('isLoggedIn');
         window.location.href = 'index.html';
@@ -299,6 +331,13 @@
       });
     }
     
+    // Toggle debug information display
+    function toggleDebug() {
+      debugMode = !debugMode;
+      debugInfoDiv.style.display = debugMode ? 'block' : 'none';
+      toggleDebugBtn.textContent = debugMode ? 'Hide Debug Info' : 'Show Debug Info';
+    }
+    
     // Show error message
     function showError(message) {
       errorMsgDiv.textContent = message;
@@ -306,6 +345,20 @@
       setTimeout(() => {
         errorMsgDiv.style.display = 'none';
       }, 5000);
+    }
+    
+    // Update debug info
+    function updateDebugInfo(apiData, processedData) {
+      if (apiData) {
+        apiResponseDiv.innerHTML = '<strong>API Response:</strong><br>' + 
+          JSON.stringify(apiData, null, 2).substring(0, 500) + 
+          (JSON.stringify(apiData).length > 500 ? '...(truncated)' : '');
+      }
+      
+      if (processedData) {
+        parsedDataDiv.innerHTML = '<strong>Parsed Data (first 3 items):</strong><br>' + 
+          JSON.stringify(processedData.slice(0, 3), null, 2);
+      }
     }
     
     // Load data from Google Sheets
@@ -320,7 +373,17 @@
           return response.json();
         })
         .then(data => {
+          // Store raw API response for debugging
+          updateDebugInfo(data, null);
+          
+          // Check if data is valid and has expected structure
+          if (!Array.isArray(data)) {
+            throw new Error('Invalid data format: expected an array');
+          }
+          
           nvpData = processData(data);
+          updateDebugInfo(data, nvpData);
+          
           totalPages = Math.ceil(nvpData.length / daysPerPage);
           totalPagesSpan.textContent = totalPages;
           showPage(currentPage);
@@ -328,29 +391,99 @@
         })
         .catch(error => {
           console.error('Error loading data:', error);
-          // Fall back to sample data
-          nvpData = generateSampleData();
+          showError('API Error: ' + error.message + '. Trying fallback data...');
+          
+          // First try to retrieve data from localStorage as backup
+          const cachedData = localStorage.getItem('nvpCache');
+          if (cachedData) {
+            try {
+              nvpData = JSON.parse(cachedData);
+              showError('Using cached data. Last API error: ' + error.message);
+            } catch (cacheError) {
+              // If cache parsing fails, use sample data
+              nvpData = generateSampleData();
+              showError('Using sample data. API error: ' + error.message);
+            }
+          } else {
+            // No cache available, use sample data
+            nvpData = generateSampleData();
+            showError('Using sample data. API error: ' + error.message);
+          }
+          
           totalPages = Math.ceil(nvpData.length / daysPerPage);
           totalPagesSpan.textContent = totalPages;
           showPage(currentPage);
           loadingDiv.style.display = 'none';
-          showError('Using sample data. API connection failed: ' + error.message);
         });
     }
     
     // Process data from the API
     function processData(data) {
-      return data.map(item => {
+      // Handle empty or invalid data
+      if (!data || data.length === 0) {
+        return generateSampleData();
+      }
+      
+      const processed = data.map(item => {
+        // Ensure all expected properties exist
+        const day = item.Day !== undefined ? parseInt(item.Day) : null;
+        let dateValue = item.Date || null;
+        
+        // Parse date string if it's a string
+        let date = null;
+        if (dateValue) {
+          if (typeof dateValue === 'string') {
+            date = new Date(dateValue);
+            // Check if date is valid
+            if (isNaN(date.getTime())) {
+              date = null;
+            }
+          } else if (dateValue instanceof Date) {
+            date = dateValue;
+          }
+        }
+        
+        // Convert empty strings, null or undefined to empty string for number fields
+        const goodActions = item["Good Actions"] !== undefined && item["Good Actions"] !== null && item["Good Actions"] !== "" 
+            ? item["Good Actions"] : '';
+        const badActions = item["Bad Actions"] !== undefined && item["Bad Actions"] !== null && item["Bad Actions"] !== "" 
+            ? item["Bad Actions"] : '';
+        const totalActions = item["Total Actions"] !== undefined && item["Total Actions"] !== null && item["Total Actions"] !== "" 
+            ? item["Total Actions"] : '';
+        const dayNVP = item["Day NVP"] !== undefined && item["Day NVP"] !== null && item["Day NVP"] !== "" 
+            ? item["Day NVP"] : '';
+        const updatedNVP = item["Updated NVP"] !== undefined && item["Updated NVP"] !== null && item["Updated NVP"] !== "" 
+            ? item["Updated NVP"] : '';
+        
+        // If day is missing, generate it based on index
+        if (day === null) {
+          return null; // Skip invalid entries
+        }
+        
         return {
-          day: item.Day,
-          date: new Date(item.Date),
-          goodActions: item["Good Actions"] !== undefined ? item["Good Actions"] : '',
-          badActions: item["Bad Actions"] !== undefined ? item["Bad Actions"] : '',
-          totalActions: item["Total Actions"] !== undefined ? item["Total Actions"] : '',
-          dayNVP: item["Day NVP"] !== undefined ? item["Day NVP"] : '',
-          updatedNVP: item["Updated NVP"] !== undefined ? item["Updated NVP"] : ''
+          day: day,
+          date: date,
+          goodActions: goodActions,
+          badActions: badActions,
+          totalActions: totalActions,
+          dayNVP: dayNVP,
+          updatedNVP: updatedNVP
         };
-      });
+      }).filter(item => item !== null); // Remove any null entries
+      
+      // If we ended up with no valid data, return sample data
+      if (processed.length === 0) {
+        return generateSampleData();
+      }
+      
+      // Cache the processed data
+      try {
+        localStorage.setItem('nvpCache', JSON.stringify(processed));
+      } catch (e) {
+        console.warn('Failed to cache data in localStorage:', e);
+      }
+      
+      return processed;
     }
     
     // Generate sample data for development or when API fails
@@ -502,14 +635,18 @@
       // Find the item in the data array
       const index = nvpData.findIndex(item => item.day === day);
       if (index >= 0) {
-        // Update the value
+        // Update the value locally first for immediate feedback
         if (type === 'good') {
           nvpData[index].goodActions = value;
         } else {
           nvpData[index].badActions = value;
         }
         
-        // Update the API
+        // Update locally calculated values for immediate feedback
+        updateDerivedValues(index);
+        showPage(currentPage);
+        
+        // Now update via API
         loadingDiv.style.display = 'block';
         
         fetch(`${API_URL}?action=updateNVP&day=${day}&type=${type}&value=${value !== '' ? value : ''}`)
@@ -521,26 +658,18 @@
           })
           .then(data => {
             if (data.success) {
-              // Refresh data to get updated calculations
+              // Refresh data to get updated calculations from server
               loadData();
             } else {
               // If API reports failure but returned a response
               showError(`Failed to update: ${data.message || 'Unknown error'}`);
               loadingDiv.style.display = 'none';
-              
-              // Fall back to local calculations
-              updateDerivedValues(index);
-              showPage(currentPage);
             }
           })
           .catch(error => {
             console.error('Error updating action:', error);
-            showError('Failed to update action: ' + error.message);
+            showError('Failed to update action via API: ' + error.message + ' (but local data updated)');
             loadingDiv.style.display = 'none';
-            
-            // Fall back to local calculations
-            updateDerivedValues(index);
-            showPage(currentPage);
           });
       }
     }
@@ -580,6 +709,13 @@
             item.updatedNVP = '';
           }
         }
+      }
+      
+      // Cache the updated data
+      try {
+        localStorage.setItem('nvpCache', JSON.stringify(nvpData));
+      } catch (e) {
+        console.warn('Failed to cache updated data in localStorage:', e);
       }
     }
     
