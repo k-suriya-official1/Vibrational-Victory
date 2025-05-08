@@ -1,0 +1,429 @@
+// Constants
+const SHEET_TODO = "TO-DO LIST"; // Todo list sheet name
+const SHEET_NVP = "NVP";     // NVP tracker sheet name
+const START_DATE = new Date("2025-04-27"); // Day 1 date for NVP tracker
+
+// Web app configuration: Handles GET requests from your HTML pages
+function doGet(e) {
+  // Handle undefined request parameters
+  if (!e || !e.parameter) {
+    return ContentService.createTextOutput(JSON.stringify({
+      error: "No parameters provided"
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const action = e.parameter.action; // Determines what operation to perform
+
+  // Check if an action is specified
+  if (!action) {
+    return ContentService.createTextOutput(JSON.stringify({
+      error: "No action specified"
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  try {
+    // Route the request to the appropriate function based on the action parameter
+    switch (action) {
+      case "list": // For To-Do: lists all tasks
+        return listTasks();
+      case "add": // For To-Do: adds a new task
+        return addTask(e.parameter);
+      case "update": // For To-Do: updates a task's status
+        return updateTask(e.parameter);
+      case "delete": // For To-Do: deletes a task
+        return deleteTask(e.parameter);
+      case "getNVP": // For NVP Tracker: gets all NVP data
+        return getNVPData();
+      case "updateNVP": // For NVP Tracker: updates Good/Bad actions for a day
+        return updateNVPData(e.parameter);
+      default:
+        return ContentService.createTextOutput(JSON.stringify({
+          error: "Invalid action"
+        })).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) {
+    Logger.log(err); // Log any errors for debugging in Apps Script editor
+    return ContentService.createTextOutput(JSON.stringify({
+      error: "An unexpected error occurred: " + err.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Functions for direct testing in Apps Script editor
+function testListTasks() {
+  Logger.log(JSON.parse(listTasks().getContent()));
+}
+
+function testAddTask() {
+  const mockParams = {
+    task: "Test Task",
+    dueDate: "2025-05-15",
+    dueTime: "14:30",
+    priority: "2"
+  };
+  Logger.log(JSON.parse(addTask(mockParams).getContent()));
+}
+
+function testUpdateTask() {
+  const mockParams = {
+    task: "Test Task",
+    done: "true"
+  };
+  Logger.log(JSON.parse(updateTask(mockParams).getContent()));
+}
+
+function testDeleteTask() {
+  const mockParams = {
+    task: "Test Task"
+  };
+  Logger.log(JSON.parse(deleteTask(mockParams).getContent()));
+}
+
+function testGetNVPData() {
+  Logger.log(JSON.parse(getNVPData().getContent()));
+}
+
+function testUpdateNVPData() {
+  const mockParams = {
+    day: "1",
+    type: "good",
+    value: "5"
+  };
+  Logger.log(JSON.parse(updateNVPData(mockParams).getContent()));
+}
+
+// Initialize Sheets: Creates and formats the To-Do and NVP sheets if they don't exist
+function initSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(); // Get the active spreadsheet
+
+  // Initialize Todo sheet (Sheet1)
+  let todoSheet = ss.getSheetByName(SHEET_TODO);
+  if (!todoSheet) {
+    todoSheet = ss.insertSheet(SHEET_TODO);
+    const headers = ["Task", "Created Date", "Created Time", "Due Date", "Due Time", "Priority", "Done"];
+    todoSheet.appendRow(headers); // Add header row
+    todoSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#D9E1F2"); // Style headers
+    todoSheet.setFrozenRows(1); // Freeze header row for better scrolling
+  }
+
+  // Initialize NVP sheet
+  let nvpSheet = ss.getSheetByName(SHEET_NVP);
+  if (!nvpSheet) {
+    nvpSheet = ss.insertSheet(SHEET_NVP);
+    const headers = ["Day", "Date", "Good Actions", "Bad Actions", "Total Actions", "Day NVP", "Updated NVP"];
+    nvpSheet.appendRow(headers); // Add header row
+    nvpSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#D9E1F2"); // Style headers
+    nvpSheet.setFrozenRows(1); // Freeze header row
+
+    // Prepare 100 days of data for NVP sheet
+    const dataRows = [];
+    for (let i = 0; i < 100; i++) {
+      const date = new Date(START_DATE.getTime() + i * 24 * 60 * 60 * 1000);
+      dataRows.push([i + 1, date, "", "", "", "", ""]); // Day, Date, empty values for actions/NVP
+    }
+
+    if (dataRows.length > 0) {
+      nvpSheet.getRange(2, 1, dataRows.length, headers.length).setValues(dataRows); // Populate rows
+
+      // Format columns for NVP sheet
+      nvpSheet.getRange("A:A").setNumberFormat("0"); // Day as a whole number
+      nvpSheet.getRange("B:B").setNumberFormat("yyyy-mm-dd"); // Date format
+      nvpSheet.getRange("C:E").setNumberFormat("0"); // Actions as whole numbers
+      nvpSheet.getRange("F:G").setNumberFormat("0.000000"); // NVP values as decimals
+
+      // Add formulas for automatic calculations in NVP sheet
+      for (let i = 2; i <= dataRows.length + 1; i++) {
+        // Total Actions formula: C{row} + D{row}
+        nvpSheet.getRange(i, 5).setFormula(`=IF(AND(ISNUMBER(C${i}), ISNUMBER(D${i})),C${i}+D${i},"")`);
+
+        // Day NVP formula: (C{row}-D{row})/E{row}
+        nvpSheet.getRange(i, 6).setFormula(`=IF(AND(E${i}<>"", E${i}<>0), (C${i}-D${i})/E${i},"")`);
+
+        // Updated NVP formula (Cumulative Average of Day NVPs that are not blank)
+        if (i === 2) { // For the first data row
+          nvpSheet.getRange(i, 7).setFormula(`=IF(F${i}<>"",F${i},"")`);
+        } else { // For subsequent rows, average F2 up to current row's F column
+          nvpSheet.getRange(i, 7).setFormula(`=IF(F${i}<>"",AVERAGEIF($F$2:F${i},"<>"&""),"")`);
+        }
+      }
+
+      // Add alternating row colors for NVP sheet readability
+      for (let i = 2; i <= dataRows.length + 1; i++) {
+        if (i % 2 === 0) { // Even rows (data row 1, 3, 5... in 1-based sheet index)
+          nvpSheet.getRange(i, 1, 1, headers.length).setBackground("#F0F0F0");
+        } else { // Odd rows
+          nvpSheet.getRange(i, 1, 1, headers.length).setBackground("#FFFFFF");
+        }
+      }
+    }
+  }
+
+  return { // Return references to the sheets
+    todo: todoSheet,
+    nvp: nvpSheet
+  };
+}
+
+// ----- To-Do List Functions -----
+
+// List all tasks from the To-Do sheet
+function listTasks() {
+  const sheets = initSheets(); // Ensure sheets are initialized
+  const todoSheet = sheets.todo;
+
+  const data = todoSheet.getDataRange().getValues(); // Get all data
+  if (data.length <= 1) { // If only headers or sheet is empty
+    return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+  }
+  const headers = data[0]; // First row is headers
+  const tasks = [];
+
+  // Iterate through rows (skip header)
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const task = {};
+
+    // Create an object for each task using headers as keys
+    for (let j = 0; j < headers.length; j++) {
+      let value = row[j];
+      // Format date and time values consistently
+      if ((headers[j] === "Created Date" || headers[j] === "Due Date") && value instanceof Date) {
+        value = Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      } else if ((headers[j] === "Created Time" || headers[j] === "Due Time") && value instanceof Date) {
+        value = Utilities.formatDate(value, Session.getScriptTimeZone(), "HH:mm:ss");
+      } else if (value instanceof Date) { // Catch-all for other date objects
+        value = Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      }
+      task[headers[j]] = value;
+    }
+
+    // Ensure "Done" status is a boolean
+    if (task.Done === "TRUE" || task.Done === true) {
+      task.Done = true;
+    } else {
+      task.Done = false;
+    }
+    tasks.push(task);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(tasks))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Add a new task to the To-Do sheet
+function addTask(params) {
+  const sheets = initSheets();
+  const todoSheet = sheets.todo;
+
+  // Extract parameters from the request
+  const task = params.task;
+  const dueDate = params.dueDate; // Expected format: yyyy-MM-dd
+  const dueTime = params.dueTime; // Expected format: HH:mm
+  const priority = parseInt(params.priority) || 1; // Default priority to 1 if not provided
+
+  // Validate required parameters
+  if (!task || !dueDate || !dueTime) {
+    throw new Error("Task, due date, and due time are required.");
+  }
+
+  const now = new Date(); // Current date and time for "Created" fields
+  const createdDate = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  const createdTime = Utilities.formatDate(now, Session.getScriptTimeZone(), "HH:mm:ss");
+
+  // Append the new task as a row in the sheet
+  todoSheet.appendRow([task, createdDate, createdTime, dueDate, dueTime, priority, false]); // 'false' for Done status
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    message: "Task added successfully"
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Update a task's "Done" status in the To-Do sheet
+function updateTask(params) {
+  const sheets = initSheets();
+  const todoSheet = sheets.todo;
+
+  const taskName = params.task; // Task name to identify the task
+  const done = params.done === "true"; // Convert "true"/"false" string to boolean
+
+  if (!taskName) {
+    throw new Error("Task name is required to update.");
+  }
+
+  const data = todoSheet.getDataRange().getValues();
+  const headers = data[0];
+  const taskColumnIndex = headers.indexOf("Task"); // Find "Task" column
+  const doneColumnIndex = headers.indexOf("Done"); // Find "Done" column
+
+  if (taskColumnIndex === -1 || doneColumnIndex === -1) {
+    throw new Error("Sheet is missing 'Task' or 'Done' column.");
+  }
+
+  // Find the task and update its "Done" status
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][taskColumnIndex] === taskName) {
+      todoSheet.getRange(i + 1, doneColumnIndex + 1).setValue(done); // Ranges are 1-indexed
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Task updated successfully"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // If task not found
+  return ContentService.createTextOutput(JSON.stringify({
+    success: false,
+    message: "Task not found"
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Delete a task from the To-Do sheet
+function deleteTask(params) {
+  const sheets = initSheets();
+  const todoSheet = sheets.todo;
+
+  const taskName = params.task; // Task name to identify the task
+
+  if (!taskName) {
+    throw new Error("Task name is required to delete.");
+  }
+
+  const data = todoSheet.getDataRange().getValues();
+  const headers = data[0];
+  const taskColumnIndex = headers.indexOf("Task");
+
+  if (taskColumnIndex === -1) {
+    throw new Error("Sheet is missing 'Task' column.");
+  }
+
+  // Iterate backwards for safe row deletion
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (data[i][taskColumnIndex] === taskName) {
+      todoSheet.deleteRow(i + 1); // Delete the row
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Task deleted successfully"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // If task not found
+  return ContentService.createTextOutput(JSON.stringify({
+    success: false,
+    message: "Task not found for deletion"
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ----- NVP Tracker Functions -----
+
+// Get all NVP data from the NVP sheet
+function getNVPData() {
+  const sheets = initSheets();
+  const nvpSheet = sheets.nvp;
+
+  const data = nvpSheet.getDataRange().getValues();
+  if (data.length <= 1) { // If only headers or sheet is empty
+    return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+  }
+  const headers = data[0];
+  const nvpData = [];
+
+  // Iterate through rows (skip header)
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const entry = {};
+
+    // Create an object for each day's NVP entry
+    for (let j = 0; j < headers.length; j++) {
+      let value = row[j];
+      // Format Date
+      if (headers[j] === "Date" && value instanceof Date) {
+        value = Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      }
+      // Ensure numerical fields are numbers or empty strings
+      if (["Good Actions", "Bad Actions", "Total Actions"].includes(headers[j])) {
+        value = (value === "" || value === null) ? "" : Number(value);
+      }
+      // Ensure NVP fields are numbers formatted to 6 decimals or empty strings
+      if (["Day NVP", "Updated NVP"].includes(headers[j])) {
+        value = (value === "" || value === null) ? "" : Number(parseFloat(value).toFixed(6));
+      }
+      entry[headers[j]] = value;
+    }
+    nvpData.push(entry);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(nvpData))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Update NVP data (Good or Bad Actions for a specific day)
+function updateNVPData(params) {
+  const sheets = initSheets();
+  const nvpSheet = sheets.nvp;
+
+  // Extract and validate parameters
+  const day = parseInt(params.day);
+  const type = params.type; // "good" or "bad"
+  const value = params.value !== "" ? parseInt(params.value) : ""; // Allow empty string to clear value
+
+  if (isNaN(day) || day < 1) {
+    throw new Error("Invalid 'day' parameter.");
+  }
+  if (type !== "good" && type !== "bad") {
+    throw new Error("Invalid 'type' parameter. Must be 'good' or 'bad'.");
+  }
+  if (value !== "" && (isNaN(value) || value < 0)) {
+    throw new Error("Invalid 'value' parameter. Must be a non-negative number or empty string.");
+  }
+
+  const data = nvpSheet.getDataRange().getValues();
+  const headers = data[0];
+  const dayColumnIndex = headers.indexOf("Day");
+  const goodActionsColumnIndex = headers.indexOf("Good Actions");
+  const badActionsColumnIndex = headers.indexOf("Bad Actions");
+
+  if (dayColumnIndex === -1 || goodActionsColumnIndex === -1 || badActionsColumnIndex === -1) {
+    throw new Error("NVP Sheet is missing required columns: Day, Good Actions, or Bad Actions.");
+  }
+
+  let rowIndexToUpdate = -1;
+  // Find the row corresponding to the given day
+  for (let i = 1; i < data.length; i++) {
+    if (parseInt(data[i][dayColumnIndex]) === day) {
+      rowIndexToUpdate = i + 1; // Sheet rows are 1-indexed
+      break;
+    }
+  }
+
+  if (rowIndexToUpdate === -1) { // If day not found
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: `Day ${day} not found in NVP sheet.`
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Determine which column to update (Good Actions or Bad Actions)
+  let columnIndexToUpdate;
+  if (type === "good") {
+    columnIndexToUpdate = goodActionsColumnIndex + 1;
+  } else { // type === "bad"
+    columnIndexToUpdate = badActionsColumnIndex + 1;
+  }
+
+  // Set the new value in the sheet
+  nvpSheet.getRange(rowIndexToUpdate, columnIndexToUpdate).setValue(value);
+  // Google Sheets will automatically recalculate formulas dependent on this cell.
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    message: `NVP data for Day ${day} (${type}) updated to ${value}.`
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Helper function to allow running initSheets from the Apps Script editor for setup/testing
+function initializeSpreadsheets() {
+  initSheets();
+  Logger.log("Spreadsheets initialized/verified successfully.");
+}

@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>NVP Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+      overflow-x: auto;
+    }
+    .header {
+      background-color: #91b2d5;
+      color: white;
+      padding: 15px;
+      border-radius: 8px 8px 0 0;
+      margin: -20px -20px 20px -20px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .control-panel {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 10px;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 5px;
+    }
+    .control-panel label {
+      font-weight: bold;
+      margin-right: 5px;
+    }
+    .control-panel span {
+      display: inline-block;
+      margin: 0 10px;
+    }
+    .page-input {
+      width: 40px;
+      padding: 5px;
+      text-align: center;
+    }
+    .days-input {
+      width: 40px;
+      padding: 5px;
+      text-align: center;
+    }
+    .showing-days {
+      margin-left: auto;
+      font-weight: bold;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: center;
+    }
+    th {
+      background-color: #d9e1f2;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+    }
+    tr:nth-child(even) {
+      background-color: #f0f0f0;
+    }
+    tr.today {
+      background-color: #fff2cc !important;
+    }
+    .nav-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .nav-btn {
+      background-color: #d9e1f2;
+      border: 1px solid #91b2d5;
+      color: black;
+    }
+    .today-btn {
+      background-color: #fff2cc;
+      border: 1px solid #ffc000;
+      color: black;
+    }
+    .refresh-btn {
+      background-color: #e2efda;
+      border: 1px solid #76933c;
+      color: black;
+    }
+    .todo-btn {
+      background-color: #4CAF50;
+      color: white;
+      margin-left: 10px;
+    }
+    input[type="number"] {
+      width: 80px;
+      padding: 5px;
+    }
+    .actions-input {
+      width: 60px;
+      text-align: center;
+    }
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .logout-btn {
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .page-label {
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #555;
+      display: none;
+    }
+    .error-message {
+      color: #e74c3c;
+      text-align: center;
+      padding: 10px;
+      background-color: rgba(231, 76, 60, 0.1);
+      border-radius: 4px;
+      margin-bottom: 15px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">ACTION TRACKER CONTROL PANEL</div>
+    
+    <div class="header-container">
+      <h1>NVP Tracker</h1>
+      <div>
+        <button onclick="window.location.href='todo.html'" class="btn todo-btn">Todo Page</button>
+        <button id="logoutBtn" class="logout-btn">Logout</button>
+      </div>
+    </div>
+    
+    <div id="errorMsg" class="error-message"></div>
+    <div id="loading" class="loading">Loading data...</div>
+    
+    <div class="control-panel">
+      <div class="page-label">
+        <label for="currentPage">Current Page:</label>
+        <input type="number" id="currentPage" class="page-input" value="1" min="1">
+      </div>
+      
+      <span>of</span>
+      <span id="totalPages">10</span>
+      
+      <div class="page-label">
+        <label for="daysPerPage">Days Per Page:</label>
+        <input type="number" id="daysPerPage" class="days-input" value="10" min="1" max="100">
+      </div>
+      
+      <span class="showing-days" id="showingDays">Showing Days: 1 to 10</span>
+    </div>
+    
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>Day</th>
+          <th>Date</th>
+          <th>Good Actions</th>
+          <th>Bad Actions</th>
+          <th>Total Actions</th>
+          <th>Day NVP</th>
+          <th>Updated NVP</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- Data will be populated here -->
+      </tbody>
+    </table>
+    
+    <div class="nav-buttons">
+      <button class="btn nav-btn" id="btnFirstPage">⏮ First</button>
+      <button class="btn nav-btn" id="btnPrevPage">◀ Previous</button>
+      <button class="btn nav-btn" id="btnNextPage">Next ▶</button>
+      <button class="btn nav-btn" id="btnLastPage">Last ⏭</button>
+      <button class="btn today-btn" id="btnGoToToday">Today</button>
+      <button class="btn refresh-btn" id="btnRefresh">Refresh</button>
+    </div>
+  </div>
+
+  <script>
+    // Replace with your Google Apps Script Web App URL
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyLgZIzTFXVjXLM7UqSNZgaD-BGFZDl047HlJWiiIIE7nu7tnwllYw6leuC9y0owuYppA/exec';
+    
+    // Check if user is logged in
+    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+      window.location.href = 'index.html';
+    }
+
+    // DOM Elements
+    const currentPageInput = document.getElementById('currentPage');
+    const totalPagesSpan = document.getElementById('totalPages');
+    const daysPerPageInput = document.getElementById('daysPerPage');
+    const showingDaysSpan = document.getElementById('showingDays');
+    const tableBody = document.getElementById('tableBody');
+    const loadingDiv = document.getElementById('loading');
+    const errorMsgDiv = document.getElementById('errorMsg');
+    
+    // Navigation buttons
+    const btnFirstPage = document.getElementById('btnFirstPage');
+    const btnPrevPage = document.getElementById('btnPrevPage');
+    const btnNextPage = document.getElementById('btnNextPage');
+    const btnLastPage = document.getElementById('btnLastPage');
+    const btnGoToToday = document.getElementById('btnGoToToday');
+    const btnRefresh = document.getElementById('btnRefresh');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
+    // Constants
+    const STARTING_DATE = new Date('2025-04-27'); // Day 1 date
+    const TODAY = new Date();
+    
+    // Global variables
+    let currentPage = 1;
+    let daysPerPage = 10;
+    let totalPages = 10;
+    let nvpData = [];
+    
+    // Initial setup
+    function init() {
+      loadData();
+      setupEventListeners();
+    }
+    
+    // Event listeners
+    function setupEventListeners() {
+      btnFirstPage.addEventListener('click', () => showPage(1));
+      btnPrevPage.addEventListener('click', () => showPage(currentPage - 1));
+      btnNextPage.addEventListener('click', () => showPage(currentPage + 1));
+      btnLastPage.addEventListener('click', () => showPage(totalPages));
+      btnGoToToday.addEventListener('click', goToToday);
+      btnRefresh.addEventListener('click', refreshView);
+      logoutBtn.addEventListener('click', () => {
+        sessionStorage.removeItem('isLoggedIn');
+        window.location.href = 'index.html';
+      });
+      
+      currentPageInput.addEventListener('change', () => {
+        let page = parseInt(currentPageInput.value);
+        if (!isNaN(page)) {
+          showPage(page);
+        }
+      });
+      
+      daysPerPageInput.addEventListener('change', () => {
+        let days = parseInt(daysPerPageInput.value);
+        if (!isNaN(days) && days > 0 && days <= 100) {
+          daysPerPage = days;
+          totalPages = Math.ceil(nvpData.length / daysPerPage);
+          totalPagesSpan.textContent = totalPages;
+          showPage(currentPage);
+        }
+      });
+    }
+    
+    // Show error message
+    function showError(message) {
+      errorMsgDiv.textContent = message;
+      errorMsgDiv.style.display = 'block';
+      setTimeout(() => {
+        errorMsgDiv.style.display = 'none';
+      }, 5000);
+    }
+    
+    // Load data from Google Sheets
+    function loadData() {
+      loadingDiv.style.display = 'block';
+      
+      fetch(`${API_URL}?action=getNVP`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .then(data => {
+          nvpData = processData(data);
+          totalPages = Math.ceil(nvpData.length / daysPerPage);
+          totalPagesSpan.textContent = totalPages;
+          showPage(currentPage);
+          loadingDiv.style.display = 'none';
+        })
+        .catch(error => {
+          console.error('Error loading data:', error);
+          // Fall back to sample data
+          nvpData = generateSampleData();
+          totalPages = Math.ceil(nvpData.length / daysPerPage);
+          totalPagesSpan.textContent = totalPages;
+          showPage(currentPage);
+          loadingDiv.style.display = 'none';
+          showError('Using sample data. API connection failed: ' + error.message);
+        });
+    }
+    
+    // Process data from the API
+    function processData(data) {
+      return data.map(item => {
+        return {
+          day: item.Day,
+          date: new Date(item.Date),
+          goodActions: item["Good Actions"] !== undefined ? item["Good Actions"] : '',
+          badActions: item["Bad Actions"] !== undefined ? item["Bad Actions"] : '',
+          totalActions: item["Total Actions"] !== undefined ? item["Total Actions"] : '',
+          dayNVP: item["Day NVP"] !== undefined ? item["Day NVP"] : '',
+          updatedNVP: item["Updated NVP"] !== undefined ? item["Updated NVP"] : ''
+        };
+      });
+    }
+    
+    // Generate sample data for development or when API fails
+    function generateSampleData() {
+      const data = [];
+      for (let i = 0; i < 100; i++) {
+        const date = new Date(STARTING_DATE.getTime() + i * 24 * 60 * 60 * 1000);
+        const goodActions = date <= TODAY ? Math.floor(Math.random() * 10) + (i < 20 ? 5 : 0) : '';
+        const badActions = date <= TODAY ? Math.floor(Math.random() * 5) : '';
+        
+        let totalActions = '';
+        let dayNVP = '';
+        let updatedNVP = '';
+        
+        if (date <= TODAY) {
+          const good = parseInt(goodActions) || 0;
+          const bad = parseInt(badActions) || 0;
+          totalActions = good + bad;
+          
+          if (totalActions > 0) {
+            dayNVP = ((good - bad) / totalActions).toFixed(6);
+            
+            if (i === 0) {
+              updatedNVP = dayNVP;
+            } else {
+              // Calculate cumulative NVP
+              const prevDays = data.filter(d => d.dayNVP !== '');
+              const allNVPs = prevDays.map(d => parseFloat(d.dayNVP));
+              if (dayNVP !== '') {
+                allNVPs.push(parseFloat(dayNVP));
+              }
+              
+              if (allNVPs.length > 0) {
+                updatedNVP = (allNVPs.reduce((sum, val) => sum + val, 0) / allNVPs.length).toFixed(6);
+              }
+            }
+          }
+        }
+        
+        data.push({
+          day: i + 1,
+          date: date,
+          goodActions: goodActions,
+          badActions: badActions,
+          totalActions: totalActions,
+          dayNVP: dayNVP,
+          updatedNVP: updatedNVP
+        });
+      }
+      return data;
+    }
+    
+    // Update the table with data for the current page
+    function showPage(pageNum) {
+      if (pageNum < 1) pageNum = 1;
+      if (pageNum > totalPages) pageNum = totalPages;
+      
+      currentPage = pageNum;
+      currentPageInput.value = currentPage;
+      
+      const startRow = (currentPage - 1) * daysPerPage;
+      const endRow = Math.min(currentPage * daysPerPage, nvpData.length);
+      
+      showingDaysSpan.textContent = `Showing Days: ${startRow + 1} to ${endRow}`;
+      
+      tableBody.innerHTML = '';
+      
+      for (let i = startRow; i < endRow; i++) {
+        if (i >= nvpData.length) break;
+        
+        const item = nvpData[i];
+        const row = document.createElement('tr');
+        
+        // Check if this row is today
+        const isToday = item.date && item.date.toDateString() === TODAY.toDateString();
+        if (isToday) {
+          row.classList.add('today');
+        }
+        
+        // Day
+        const dayCell = document.createElement('td');
+        dayCell.textContent = item.day;
+        row.appendChild(dayCell);
+        
+        // Date
+        const dateCell = document.createElement('td');
+        dateCell.textContent = item.date ? item.date.toLocaleDateString() : '';
+        row.appendChild(dateCell);
+        
+        // Good Actions
+        const goodActionsCell = document.createElement('td');
+        if (item.date && item.date <= TODAY) {
+          const goodInput = document.createElement('input');
+          goodInput.type = 'number';
+          goodInput.className = 'actions-input';
+          goodInput.value = item.goodActions;
+          goodInput.min = 0;
+          goodInput.dataset.day = item.day;
+          goodInput.dataset.type = 'good';
+          goodInput.addEventListener('change', updateAction);
+          goodActionsCell.appendChild(goodInput);
+        } else {
+          goodActionsCell.textContent = '';
+        }
+        row.appendChild(goodActionsCell);
+        
+        // Bad Actions
+        const badActionsCell = document.createElement('td');
+        if (item.date && item.date <= TODAY) {
+          const badInput = document.createElement('input');
+          badInput.type = 'number';
+          badInput.className = 'actions-input';
+          badInput.value = item.badActions;
+          badInput.min = 0;
+          badInput.dataset.day = item.day;
+          badInput.dataset.type = 'bad';
+          badInput.addEventListener('change', updateAction);
+          badActionsCell.appendChild(badInput);
+        } else {
+          badActionsCell.textContent = '';
+        }
+        row.appendChild(badActionsCell);
+        
+        // Total Actions
+        const totalActionsCell = document.createElement('td');
+        totalActionsCell.textContent = item.totalActions;
+        row.appendChild(totalActionsCell);
+        
+        // Day NVP
+        const dayNVPCell = document.createElement('td');
+        dayNVPCell.textContent = item.dayNVP;
+        row.appendChild(dayNVPCell);
+        
+        // Updated NVP
+        const updatedNVPCell = document.createElement('td');
+        updatedNVPCell.textContent = item.updatedNVP;
+        row.appendChild(updatedNVPCell);
+        
+        tableBody.appendChild(row);
+      }
+    }
+    
+    // Update an action value (good or bad)
+    function updateAction(event) {
+      const day = parseInt(event.target.dataset.day);
+      const type = event.target.dataset.type;
+      const value = event.target.value !== '' ? parseInt(event.target.value) : '';
+      
+      // Find the item in the data array
+      const index = nvpData.findIndex(item => item.day === day);
+      if (index >= 0) {
+        // Update the value
+        if (type === 'good') {
+          nvpData[index].goodActions = value;
+        } else {
+          nvpData[index].badActions = value;
+        }
+        
+        // Update the API
+        loadingDiv.style.display = 'block';
+        
+        fetch(`${API_URL}?action=updateNVP&day=${day}&type=${type}&value=${value !== '' ? value : ''}`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.success) {
+              // Refresh data to get updated calculations
+              loadData();
+            } else {
+              // If API reports failure but returned a response
+              showError(`Failed to update: ${data.message || 'Unknown error'}`);
+              loadingDiv.style.display = 'none';
+              
+              // Fall back to local calculations
+              updateDerivedValues(index);
+              showPage(currentPage);
+            }
+          })
+          .catch(error => {
+            console.error('Error updating action:', error);
+            showError('Failed to update action: ' + error.message);
+            loadingDiv.style.display = 'none';
+            
+            // Fall back to local calculations
+            updateDerivedValues(index);
+            showPage(currentPage);
+          });
+      }
+    }
+    
+    // Update calculated values locally when the API update fails
+    function updateDerivedValues(startIndex) {
+      for (let i = startIndex; i < nvpData.length; i++) {
+        const item = nvpData[i];
+        
+        if (item.date && item.date <= TODAY) {
+          const goodActions = parseInt(item.goodActions) || 0;
+          const badActions = parseInt(item.badActions) || 0;
+          
+          // Update total actions
+          const totalActions = goodActions + badActions;
+          item.totalActions = totalActions > 0 ? totalActions : '';
+          
+          // Update day NVP
+          if (totalActions > 0) {
+            item.dayNVP = ((goodActions - badActions) / totalActions).toFixed(6);
+          } else {
+            item.dayNVP = '';
+          }
+          
+          // Update cumulative NVP
+          if (item.dayNVP !== '') {
+            const relevantDays = nvpData
+              .filter((d, idx) => idx <= i && d.date && d.date <= TODAY && d.dayNVP !== '');
+            
+            if (relevantDays.length > 0) {
+              const allNVPs = relevantDays.map(d => parseFloat(d.dayNVP));
+              item.updatedNVP = (allNVPs.reduce((sum, val) => sum + val, 0) / allNVPs.length).toFixed(6);
+            } else {
+              item.updatedNVP = '';
+            }
+          } else {
+            item.updatedNVP = '';
+          }
+        }
+      }
+    }
+    
+    // Go to the page containing today's date
+    function goToToday() {
+      const today = new Date();
+      
+      // Find today's entry
+      const todayIndex = nvpData.findIndex(item => 
+        item.date && item.date.toDateString() === today.toDateString()
+      );
+      
+      if (todayIndex !== -1) {
+        const todayPage = Math.ceil((todayIndex + 1) / daysPerPage);
+        showPage(todayPage);
+      } else {
+        // Calculate days since starting date
+        const daysSinceStart = Math.floor((today - STARTING_DATE) / (24 * 60 * 60 * 1000));
+        if (daysSinceStart >= 0) {
+          const dayNumber = daysSinceStart + 1; // Day 1 is the starting date
+          const pageNumber = Math.ceil(dayNumber / daysPerPage);
+          showPage(pageNumber);
+        } else {
+          showError('Today is before the starting date for the NVP tracker.');
+          showPage(1);
+        }
+      }
+    }
+    
+    // Refresh the data and view
+    function refreshView() {
+      loadData();
+    }
+    
+    // Initialize the application
+    init();
+  </script>
+</body>
+</html>

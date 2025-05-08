@@ -27,8 +27,20 @@
       justify-content: space-between;
       align-items: center;
     }
+    .header-buttons {
+      display: flex;
+      gap: 10px;
+    }
     .logout-btn {
       background-color: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .nvp-btn {
+      background-color: #91b2d5;
       color: white;
       border: none;
       padding: 8px 16px;
@@ -119,7 +131,10 @@
   <div class="container">
     <div class="header-container">
       <h1>To-Do List</h1>
-      <button id="logoutBtn" class="logout-btn">Logout</button>
+      <div class="header-buttons">
+        <button onclick="window.location.href='NVP.html'" class="nvp-btn">NVP Tracker</button>
+        <button id="logoutBtn" class="logout-btn">Logout</button>
+      </div>
     </div>
     
     <div id="errorMsg" class="error-message"></div>
@@ -156,7 +171,7 @@
 
   <script>
     // Replace with your Google Apps Script Web App URL
-    const API_URL = 'https://script.google.com/macros/s/AKfycbx2g77AobNEOvcGaq9qwOSMHFMjs3Paf-r2TGYUVaX34QtheItCoorqe8GvkXYYy21mEw/exec'; // You need to replace this with your deployed script URL
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyLgZIzTFXVjXLM7UqSNZgaD-BGFZDl047HlJWiiIIE7nu7tnwllYw6leuC9y0owuYppA/exec'; // You need to replace this with your deployed script URL
     
     // Check if user is logged in
     if (sessionStorage.getItem('isLoggedIn') !== 'true') {
@@ -197,7 +212,7 @@
           if (!response.ok) {
             throw new Error('Network response was not ok');
           }
-          return response.text();
+          return response.json();
         })
         .then(data => {
           // Reset form and refresh task list
@@ -313,6 +328,9 @@
           fetch(`${API_URL}?action=update&task=${encodeURIComponent(task.Task)}&done=${newStatus}`)
             .then(response => {
               if (!response.ok) throw new Error('Failed to update task');
+              return response.json();
+            })
+            .then(data => {
               loadTasks();
             })
             .catch(error => {
@@ -332,6 +350,9 @@
             fetch(`${API_URL}?action=delete&task=${encodeURIComponent(task.Task)}`)
               .then(response => {
                 if (!response.ok) throw new Error('Failed to delete task');
+                return response.json();
+              })
+              .then(data => {
                 loadTasks();
               })
               .catch(error => {
