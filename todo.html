@@ -149,11 +149,14 @@
         <!-- Tasks will be populated here -->
       </tbody>
     </table>
+    <div id="noTasks" style="display: none; text-align: center; padding: 20px; color: #777;">
+      No tasks found. Add your first task above!
+    </div>
   </div>
 
   <script>
     // Replace with your Google Apps Script Web App URL
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxAD2Dz8p-3McqcWV_D_9xhlrZ-_y2bLOJscIHS6fO01jucU9C_W268ZDn-YkL_NhLtag/exec'; // You need to replace this with your deployed script URL
+    const API_URL = 'https://script.google.com/macros/s/AKfycbx2g77AobNEOvcGaq9qwOSMHFMjs3Paf-r2TGYUVaX34QtheItCoorqe8GvkXYYy21mEw/exec'; // You need to replace this with your deployed script URL
     
     // Check if user is logged in
     if (sessionStorage.getItem('isLoggedIn') !== 'true') {
@@ -233,6 +236,10 @@
       const tbody = document.querySelector('#tasksTable tbody');
       tbody.innerHTML = '';
       
+      // Show/hide no tasks message
+      document.getElementById('noTasks').style.display = tasks.length === 0 ? 'block' : 'none';
+      document.getElementById('tasksTable').style.display = tasks.length === 0 ? 'none' : 'table';
+      
       // Sort tasks by priority (high to low) and status (incomplete first)
       tasks.sort((a, b) => {
         if (a.Done !== b.Done) {
@@ -262,12 +269,24 @@
         
         // Created date cell
         const createdDateCell = document.createElement('td');
-        createdDateCell.textContent = `${task['Created Date']} ${task['Created Time']}`;
+        // Format the date properly from the spreadsheet values
+        if (task['Created Date'] && task['Created Time']) {
+          createdDateCell.textContent = `${task['Created Date']} ${task['Created Time']}`;
+        } else {
+          createdDateCell.textContent = 'Not available';
+        }
         row.appendChild(createdDateCell);
         
         // Due date cell
         const dueDateTimeCell = document.createElement('td');
-        dueDateTimeCell.textContent = `${task['Due Date']} ${task['Due Time']}`;
+        // Format the date properly from the spreadsheet values
+        if (task['Due Date'] && task['Due Time']) {
+          dueDateTimeCell.textContent = `${task['Due Date']} ${task['Due Time']}`;
+        } else if (task['Due DateTime']) {
+          dueDateTimeCell.textContent = task['Due DateTime'];
+        } else {
+          dueDateTimeCell.textContent = 'Not scheduled';
+        }
         row.appendChild(dueDateTimeCell);
         
         // Priority cell
