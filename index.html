@@ -1,109 +1,94 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>To-Do List</title>
+  <title>Login</title>
   <style>
-    table, th, td {
-      border: 1px solid black;
-      border-collapse: collapse;
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      margin: 0;
+      padding: 0;
     }
-    th, td {
-      padding: 8px;
+    .login-container {
+      width: 320px;
+      padding: 24px;
+      background-color: white;
+      margin: 100px auto;
+      border-radius: 8px;
+      box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-top: 0;
+    }
+    input[type=text], input[type=password] {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0 16px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 12px;
+      width: 100%;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .error {
+      color: #e74c3c;
+      margin-bottom: 16px;
+      text-align: center;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
-  <h1>To-Do List</h1>
-  <form id="taskForm">
-    <input type="text" id="task" placeholder="Task" required>
-    <input type="date" id="dueDate" required>
-    <input type="time" id="dueTime" required>
-    <input type="number" id="priority" placeholder="Priority" required>
-    <button type="submit">Add Task</button>
+<div class="login-container">
+  <h1>Login</h1>
+  <form id="loginForm">
+    <label for="email"><b>Email</b></label>
+    <input type="text" id="email" placeholder="Enter Email" required>
+    <label for="password"><b>Password</b></label>
+    <input type="password" id="password" placeholder="Enter Password" required>
+    <div class="error" id="errorMsg"></div>
+    <button type="submit">Login</button>
   </form>
-  <br>
-  <table id="tasksTable">
-    <thead>
-      <tr>
-        <th>Task</th>
-        <th>Due DateTime</th>
-        <th>Priority</th>
-        <th>Done</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Tasks will be populated here -->
-    </tbody>
-  </table>
+</div>
+<script>
+  // Check if already logged in
+  if (sessionStorage.getItem('isLoggedIn') === 'true') {
+    window.location.href = 'todo.html';
+  }
 
-  <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxv-vyI0SCWSsxGwHcwWLDbdgzwN2NfsyfKCxVK01-QJfwo2ykm6uZSdgQbVzrhyuYDVQ/exec'; // Replace with your Web App URL
-
-    document.getElementById('taskForm').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const task = document.getElementById('task').value;
-      const dueDate = document.getElementById('dueDate').value;
-      const dueTime = document.getElementById('dueTime').value;
-      const priority = document.getElementById('priority').value;
-
-      await fetch(`${API_URL}?action=add&task=${encodeURIComponent(task)}&dueDate=${encodeURIComponent(dueDate)}&dueTime=${encodeURIComponent(dueTime)}&priority=${encodeURIComponent(priority)}`);
-      loadTasks();
-      this.reset();
-    });
-
-    async function loadTasks() {
-      const res = await fetch(`${API_URL}?action=list`);
-      const tasks = await res.json();
-
-      const tbody = document.querySelector('#tasksTable tbody');
-      tbody.innerHTML = '';
-
-      tasks.forEach(t => {
-        const row = document.createElement('tr');
-
-        const taskCell = document.createElement('td');
-        taskCell.textContent = t['Task'];
-        row.appendChild(taskCell);
-
-        const dueDateTimeCell = document.createElement('td');
-        dueDateTimeCell.textContent = t['Due DateTime'];
-        row.appendChild(dueDateTimeCell);
-
-        const priorityCell = document.createElement('td');
-        priorityCell.textContent = t['Priority'];
-        row.appendChild(priorityCell);
-
-        const doneCell = document.createElement('td');
-        doneCell.textContent = t['Done'];
-        row.appendChild(doneCell);
-
-        const actionsCell = document.createElement('td');
-
-        const doneButton = document.createElement('button');
-        doneButton.textContent = 'Done';
-        doneButton.addEventListener('click', async () => {
-          await fetch(`${API_URL}?action=update&task=${encodeURIComponent(t['Task'])}&done=true`);
-          loadTasks();
-        });
-        actionsCell.appendChild(doneButton);
-
-        const deleteButton = document.createElement('button');
-        deleteButton.textContent = 'Delete';
-        deleteButton.addEventListener('click', async () => {
-          await fetch(`${API_URL}?action=delete&task=${encodeURIComponent(t['Task'])}`);
-          loadTasks();
-        });
-        actionsCell.appendChild(deleteButton);
-
-        row.appendChild(actionsCell);
-
-        tbody.appendChild(row);
-      });
+  document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    
+    // Predefined credentials
+    const validEmail = 'ksuriyaprakash12@gmail.com';
+    const validPassword = 'ksp@051203';
+    
+    if (email === validEmail && password === validPassword) {
+      // Store login status in sessionStorage
+      sessionStorage.setItem('isLoggedIn', 'true');
+      // Redirect to the To-Do List page
+      window.location.href = 'todo.html';
+    } else {
+      document.getElementById('errorMsg').textContent = 'Invalid email or password.';
     }
-
-    // Initial load
-    loadTasks();
-  </script>
+  });
+</script>
 </body>
 </html>
