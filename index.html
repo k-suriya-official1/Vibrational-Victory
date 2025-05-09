@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,7 +23,7 @@
       color: #333;
       margin-top: 0;
     }
-    input[type=text], input[type=password] {
+    input[type=email], input[type=password] {
       width: 100%;
       padding: 12px;
       margin: 8px 0 16px 0;
@@ -54,41 +55,56 @@
   </style>
 </head>
 <body>
-<div class="login-container">
-  <h1>Login</h1>
-  <form id="loginForm">
-    <label for="email"><b>Email</b></label>
-    <input type="text" id="email" placeholder="Enter Email" required>
-    <label for="password"><b>Password</b></label>
-    <input type="password" id="password" placeholder="Enter Password" required>
-    <div class="error" id="errorMsg"></div>
-    <button type="submit">Login</button>
-  </form>
-</div>
-<script>
-  // Check if already logged in
-  if (sessionStorage.getItem('isLoggedIn') === 'true') {
-    window.location.href = 'todo.html';
-  }
+  <div class="login-container">
+    <h1>Priority To-Do List</h1>
+    <form id="loginForm">
+      <label for="email"><b>Email</b></label>
+      <input type="email" id="email" placeholder="Enter Email" required>
+      
+      <label for="password"><b>Password</b></label>
+      <input type="password" id="password" placeholder="Enter Password" required>
+      
+      <div class="error" id="errorMsg"></div>
+      <button type="submit">Login</button>
+    </form>
+  </div>
 
-  document.getElementById('loginForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    
-    // Predefined credentials
-    const validEmail = 'ksuriyaprakash12@gmail.com';
-    const validPassword = 'ksp@051203';
-    
-    if (email === validEmail && password === validPassword) {
-      // Store login status in sessionStorage
-      sessionStorage.setItem('isLoggedIn', 'true');
-      // Redirect to the To-Do List page
+  <script>
+    // Check if already logged in
+    if (sessionStorage.getItem('isLoggedIn') === 'true') {
       window.location.href = 'todo.html';
-    } else {
-      document.getElementById('errorMsg').textContent = 'Invalid email or password.';
     }
-  });
-</script>
+    
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      
+      // IMPORTANT: For a production app, never store credentials in the frontend code!
+      // This should be handled by a secure backend
+      // The following is only for demonstration purposes
+      
+      // Consider using a hash function for passwords rather than storing them directly
+      function checkCredentials(email, password) {
+        // This is a placeholder - in a real app, you would:
+        // 1. Send credentials to a secure backend API
+        // 2. Verify them against a database
+        // 3. Return a token for authentication
+        
+        const validEmail = 'ksuriyaprakash12@gmail.com'; // In a real app, don't include actual credentials
+        const validPassword = 'ksp@051203';
+        
+        return email === validEmail && password === validPassword;
+      }
+      
+      if (checkCredentials(email, password)) {
+        // In a real app, store an authentication token received from the server
+        sessionStorage.setItem('isLoggedIn', 'true');
+        window.location.href = 'todo.html';
+      } else {
+        document.getElementById('errorMsg').textContent = 'Invalid email or password.';
+      }
+    });
+  </script>
 </body>
 </html>
